@@ -1,0 +1,8 @@
+# Build artifacts and caches
+bin/*
+!bin/.gitkeep
+obj/*
+!obj/.gitkeep
+__pycache__/
+*.pyc
+.DS_Store
