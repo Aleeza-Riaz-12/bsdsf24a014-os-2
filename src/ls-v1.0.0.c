@@ -3,7 +3,7 @@
 /*
  * PA-02: progressively enhanced ls utility (C / Linux).
  * Independent educational implementation; see STARTER_CODE_NOTICE.md.
- * Current milestone: 1.5.0.
+ * Current milestone: 1.6.0.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -34,6 +34,7 @@ typedef struct {
 
 typedef enum { DISPLAY_SIMPLE, DISPLAY_LONG, DISPLAY_HORIZONTAL } DisplayMode;
 static DisplayMode mode = DISPLAY_SIMPLE;
+static int recursive_flag = 0;
 static int had_error = 0;
 
 /* Allocate a joined path; this avoids chdir() and keeps recursion safe. */
@@ -324,7 +325,7 @@ static void display_entries(const EntryList *entries)
     display_vertical(entries);
 }
 
-static int do_ls(const char *directory)
+static int do_ls(const char *directory, int *printed)
 {
     EntryList entries = {0};
     if (collect_directory(directory, &entries) != 0) {
@@ -332,7 +333,22 @@ static int do_ls(const char *directory)
         return -1;
     }
     qsort(entries.items, entries.length, sizeof(Entry), compare_entries);
+    if (recursive_flag) {
+        if (*printed) putchar('\n');
+        printf("%s:\n", directory);
+        *printed = 1;
+    }
     display_entries(&entries);
+    if (recursive_flag) {
+        /* Walk sorted children after printing the entire current directory. */
+        for (size_t i = 0; i < entries.length; ++i) {
+            const Entry *e = &entries.items[i];
+            /* lstat means directory symlinks are not traversed. */
+            if (e->valid_info && S_ISDIR(e->info.st_mode)) {
+                do_ls(e->path, printed);
+            }
+        }
+    }
     free_entries(&entries);
     return 0;
 }
@@ -340,25 +356,23 @@ static int do_ls(const char *directory)
 int main(int argc, char **argv)
 {
     int opt;
-    while ((opt = getopt(argc, argv, "lx")) != -1) {
+    while ((opt = getopt(argc, argv, "lxR")) != -1) {
         switch (opt) {
             case 'l': mode = DISPLAY_LONG; break;
             case 'x': mode = DISPLAY_HORIZONTAL; break;
+            case 'R': recursive_flag = 1; break;
             default:
-                fprintf(stderr, "Usage: %s [-lx] [directory ...]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-lxR] [directory ...]\n", argv[0]);
                 return EXIT_FAILURE;
         }
     }
     int first = optind;
+    int printed = 0;
     if (first == argc) {
-        do_ls(".");
+        do_ls(".", &printed);
     } else {
         for (int i = first; i < argc; ++i) {
-            if (argc - first > 1) {
-                if (i > first) putchar('\n');
-                printf("%s:\n", argv[i]);
-            }
-            do_ls(argv[i]);
+            do_ls(argv[i], &printed);
         }
     }
     return had_error ? EXIT_FAILURE : EXIT_SUCCESS;
