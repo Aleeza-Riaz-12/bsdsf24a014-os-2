@@ -3,7 +3,7 @@
 /*
  * PA-02: progressively enhanced ls utility (C / Linux).
  * Independent educational implementation; see STARTER_CODE_NOTICE.md.
- * Current milestone: 1.4.0.
+ * Current milestone: 1.5.0.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -167,9 +167,33 @@ static int decimal_width(uintmax_t number)
     return width;
 }
 
+static int ends_with(const char *name, const char *extension)
+{
+    size_t n = strlen(name), e = strlen(extension);
+    return n >= e && strcmp(name + n - e, extension) == 0;
+}
+
+/* ANSI colors: directory blue, executable green, archive red, symlink pink. */
+static const char *entry_color(const Entry *entry)
+{
+    if (!entry->valid_info) return "";
+    mode_t mode_bits = entry->info.st_mode;
+    if (S_ISLNK(mode_bits)) return "\033[1;35m";
+    if (S_ISDIR(mode_bits)) return "\033[1;34m";
+    if (ends_with(entry->name, ".tar") || ends_with(entry->name, ".gz") ||
+        ends_with(entry->name, ".zip")) return "\033[1;31m";
+    if (S_ISREG(mode_bits) && (mode_bits & (S_IXUSR | S_IXGRP | S_IXOTH)))
+        return "\033[1;32m";
+    if (!S_ISREG(mode_bits)) return "\033[7m"; /* reverse video */
+    return "";
+}
+
 static void print_name(const Entry *entry)
 {
+    const char *color = entry_color(entry);
+    if (*color) fputs(color, stdout);
     fputs(entry->name, stdout);
+    if (*color) fputs("\033[0m", stdout);
 }
 
 static void display_long(const EntryList *entries)
