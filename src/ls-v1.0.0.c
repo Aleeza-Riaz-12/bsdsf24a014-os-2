@@ -3,7 +3,7 @@
 /*
  * PA-02: progressively enhanced ls utility (C / Linux).
  * Independent educational implementation; see STARTER_CODE_NOTICE.md.
- * Current milestone: 1.1.0.
+ * Current milestone: 1.2.0.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -18,6 +18,7 @@
 #include <grp.h>
 #include <pwd.h>
 #include <time.h>
+#include <sys/ioctl.h>
 typedef struct {
     char *name;
     char *path;
@@ -218,13 +219,65 @@ static void display_long(const EntryList *entries)
     }
 }
 
+static unsigned terminal_width(void)
+{
+    struct winsize window = {0};
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &window) == 0 && window.ws_col > 0)
+        return window.ws_col;
+    /* For redirected output and unit tests, use COLUMNS if set. */
+    const char *env = getenv("COLUMNS");
+    if (env && *env) {
+        char *end;
+        unsigned long width = strtoul(env, &end, 10);
+        if (*end == '\0' && width > 0 && width <= UINT_MAX) return (unsigned)width;
+    }
+    return 80;
+}
+
+static size_t columns_fit(const EntryList *entries, size_t *column_width)
+{
+    size_t longest = 0;
+    for (size_t i = 0; i < entries->length; ++i) {
+        size_t n = strlen(entries->items[i].name);
+        if (n > longest) longest = n;
+    }
+    *column_width = longest + 2;
+    size_t columns = terminal_width() / *column_width;
+    if (columns < 1) columns = 1;
+    if (columns > entries->length) columns = entries->length;
+    return columns;
+}
+
+static void print_padded(const Entry *entry, size_t width, int last_column)
+{
+    print_name(entry);
+    if (!last_column) {
+        size_t used = strlen(entry->name);
+        for (size_t i = used; i < width; ++i) putchar(' ');
+    }
+}
+
+static void display_vertical(const EntryList *entries)
+{
+    if (entries->length == 0) return;
+    size_t width;
+    size_t cols = columns_fit(entries, &width);
+    size_t rows = (entries->length + cols - 1) / cols;
+    for (size_t row = 0; row < rows; ++row) {
+        for (size_t col = 0; col < cols; ++col) {
+            size_t index = col * rows + row;
+            if (index >= entries->length) continue;
+            int last = (col == cols - 1 || (col + 1) * rows + row >= entries->length);
+            print_padded(&entries->items[index], width, last);
+        }
+        putchar('\n');
+    }
+}
+
 static void display_entries(const EntryList *entries)
 {
     if (mode == DISPLAY_LONG) { display_long(entries); return; }
-    for (size_t i = 0; i < entries->length; ++i) {
-        print_name(&entries->items[i]);
-        putchar('\n');
-    }
+    display_vertical(entries);
 }
 
 static int do_ls(const char *directory)
