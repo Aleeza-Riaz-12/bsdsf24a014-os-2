@@ -3,7 +3,7 @@
 /*
  * PA-02: progressively enhanced ls utility (C / Linux).
  * Independent educational implementation; see STARTER_CODE_NOTICE.md.
- * Current milestone: 1.3.0.
+ * Current milestone: 1.4.0.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -117,6 +117,13 @@ static int collect_directory(const char *directory, EntryList *entries)
         had_error = failed = 1;
     }
     return failed ? -1 : 0;
+}
+
+/* qsort expects a comparator between two array elements (Entry objects). */
+static int compare_entries(const void *left, const void *right)
+{
+    const Entry *a = left, *b = right;
+    return strcmp(a->name, b->name);
 }
 
 static void permission_string(mode_t m, char out[11])
@@ -300,6 +307,7 @@ static int do_ls(const char *directory)
         free_entries(&entries);
         return -1;
     }
+    qsort(entries.items, entries.length, sizeof(Entry), compare_entries);
     display_entries(&entries);
     free_entries(&entries);
     return 0;
