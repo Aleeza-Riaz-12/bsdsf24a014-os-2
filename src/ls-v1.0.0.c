@@ -3,7 +3,7 @@
 /*
  * PA-02: progressively enhanced ls utility (C / Linux).
  * Independent educational implementation; see STARTER_CODE_NOTICE.md.
- * Current milestone: 1.2.0.
+ * Current milestone: 1.3.0.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -32,7 +32,7 @@ typedef struct {
     size_t capacity;
 } EntryList;
 
-typedef enum { DISPLAY_SIMPLE, DISPLAY_LONG } DisplayMode;
+typedef enum { DISPLAY_SIMPLE, DISPLAY_LONG, DISPLAY_HORIZONTAL } DisplayMode;
 static DisplayMode mode = DISPLAY_SIMPLE;
 static int had_error = 0;
 
@@ -274,9 +274,22 @@ static void display_vertical(const EntryList *entries)
     }
 }
 
+static void display_horizontal(const EntryList *entries)
+{
+    if (entries->length == 0) return;
+    size_t width;
+    size_t cols = columns_fit(entries, &width);
+    for (size_t i = 0; i < entries->length; ++i) {
+        int last = (i % cols == cols - 1 || i + 1 == entries->length);
+        print_padded(&entries->items[i], width, last);
+        if (last) putchar('\n');
+    }
+}
+
 static void display_entries(const EntryList *entries)
 {
     if (mode == DISPLAY_LONG) { display_long(entries); return; }
+    if (mode == DISPLAY_HORIZONTAL) { display_horizontal(entries); return; }
     display_vertical(entries);
 }
 
@@ -295,11 +308,12 @@ static int do_ls(const char *directory)
 int main(int argc, char **argv)
 {
     int opt;
-    while ((opt = getopt(argc, argv, "l")) != -1) {
+    while ((opt = getopt(argc, argv, "lx")) != -1) {
         switch (opt) {
             case 'l': mode = DISPLAY_LONG; break;
+            case 'x': mode = DISPLAY_HORIZONTAL; break;
             default:
-                fprintf(stderr, "Usage: %s [-l] [directory ...]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-lx] [directory ...]\n", argv[0]);
                 return EXIT_FAILURE;
         }
     }
